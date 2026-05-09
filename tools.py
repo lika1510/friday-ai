@@ -21,12 +21,33 @@ async def get_latest_news(topic: str) -> str:
     data = r.json()
     articles = data.get("articles", [])
     if not articles:
-        return f"No news found for {topic}."
-    headlines = "\n".join(
+        return f"No recent news found for {topic}."
+    return "\n".join(
         f"{i+1}. {a['title']} — {a['source']['name']}"
         for i, a in enumerate(articles)
     )
-    return f"Latest news on {topic}:\n{headlines}"
+
+def get_latest_news_sync(topic: str) -> str:
+    import requests
+    print(f"[TOOL] Fetching news for: {topic}")
+    r = requests.get(
+        "https://newsapi.org/v2/everything",
+        params={
+            "q": topic,
+            "apiKey": os.getenv("NEWS_API_KEY"),
+            "pageSize": 5,
+            "sortBy": "publishedAt",
+            "language": "en"
+        }
+    )
+    data = r.json()
+    articles = data.get("articles", [])
+    if not articles:
+        return f"No recent news found for {topic}."
+    return "\n".join(
+        f"{i+1}. {a['title']} — {a['source']['name']}"
+        for i, a in enumerate(articles)
+    )
 
 def get_time() -> str:
     now = datetime.now()
@@ -34,7 +55,7 @@ def get_time() -> str:
 
 def tool_handler(name: str, args: dict) -> str:
     if name == "get_latest_news":
-        return asyncio.run(get_latest_news(**args))
+        return get_latest_news_sync(**args)
     if name == "get_time":
         return get_time()
     return f"Unknown tool: {name}"
@@ -42,5 +63,5 @@ def tool_handler(name: str, args: dict) -> str:
 if __name__ == "__main__":
     print(get_time())
     print()
-    result = asyncio.run(get_latest_news("artificial intelligence"))
+    result = get_latest_news_sync("artificial intelligence")
     print(result)

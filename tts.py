@@ -17,8 +17,8 @@ def speak(text: str, language: str = "en-IN"):
         json={
             "inputs": [text],
             "target_language_code": language,
-            "model": "bulbul:v1",
-            "speaker": "meera"
+            "model": "bulbul:v3",
+            "speaker": "anushka"
         }
     )
 
