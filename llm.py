@@ -43,43 +43,57 @@ TOOLS = [
 ]
 
 conversation_history = []
+MAX_HISTORY = 10  # keep last 10 exchanges to avoid token overflow
 
 def chat(user_text: str, tool_handler) -> str:
+    global conversation_history
+
     conversation_history.append({
         "role": "user",
         "content": user_text
     })
 
+    # trim history if too long
+    if len(conversation_history) > MAX_HISTORY * 2:
+        conversation_history = conversation_history[-(MAX_HISTORY * 2):]
+
     messages = [{"role": "system", "content": SYSTEM_PROMPT}] + conversation_history
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=messages,
-        tools=TOOLS,
-        tool_choice="auto"
-    )
-
-    msg = response.choices[0].message
-
-    if msg.tool_calls:
-        messages.append(msg)
-        for tc in msg.tool_calls:
-            args = json.loads(tc.function.arguments)
-            print(f"[LLM] Calling tool: {tc.function.name} with {args}")
-            result = tool_handler(tc.function.name, args)
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc.id,
-                "content": result
-            })
-
-        final = client.chat.completions.create(
+    try:
+        response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=messages
+            messages=messages,
+            tools=TOOLS,
+            tool_choice="auto",
+            max_tokens=300
         )
-        reply = final.choices[0].message.content
-    else:
-        reply = msg.content
+
+        msg = response.choices[0].message
+
+        if msg.tool_calls:
+            messages.append(msg)
+            for tc in msg.tool_calls:
+                args = json.loads(tc.function.arguments)
+                print(f"[LLM] Calling tool: {tc.function.name} with {args}")
+                result = tool_handler(tc.function.name, args)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": result
+                })
+
+            final = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=messages,
+                max_tokens=300
+            )
+            reply = final.choices[0].message.content
+        else:
+            reply = msg.content
+
+    except Exception as e:
+        print(f"[LLM] Error: {e}")
+        reply = "I ran into an issue. Could you try asking that again?"
 
     conversation_history.append({
         "role": "assistant",
@@ -88,13 +102,7 @@ def chat(user_text: str, tool_handler) -> str:
 
     return reply
 
-if __name__ == "__main__":
-    def dummy_tool(name, args):
-        return "Tool result: test"
-
-    print("Testing Groq LLM...")
-    reply = chat("Hey FRIDAY, introduce yourself!", dummy_tool)
-    print("FRIDAY:", reply)
-
-    reply2 = chat("What can you help me with?", dummy_tool)
-    print("FRIDAY:", reply2)
+def clear_history():
+    global conversation_history
+    conversation_history = []
+    print("[LLM] Conversation history cleared.")
